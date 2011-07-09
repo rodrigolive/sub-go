@@ -3,7 +3,6 @@ use warnings;
 
 use Test::More;
 use Sub::Go;
-use Method::Signatures;
 
 {
     my %h = ( aa=>11 );
@@ -61,7 +60,7 @@ use Method::Signatures;
 }
 {
     my $ret = undef ~~ go { 1 };
-    is( $ret , 1, 'runs on undef' ); 
+    is( $ret , undef, 'do not run on undef' ); 
 }
 {
     my @a;
@@ -84,11 +83,11 @@ use Method::Signatures;
     my $cnt = 0;
     [99..108] ~~ go {
         $cnt++;
-        return get_out if $_[0] > 100;
+        return skip if $_[0] > 100;
         push @ret, $_[0];
     };
-    is( join(',',@ret), '99,100', 'get_out return' );
-    is( $cnt, 3, 'get_out return count' );
+    is( join(',',@ret), '99,100', 'skip return' );
+    is( $cnt, 3, 'skip return count' );
 }
 {
     # XXX broken functionality
@@ -103,14 +102,13 @@ use Method::Signatures;
         yield 100;
     } go { warn "due=>" . shift; }
 }
-{
+#{
     #use signatures;
-    warn 'cuatro=>' => 'hello' ~~
-        go { warn "uno=>" . $_[0]; 11 }
-        go { warn "due=>" . shift; [ 1..10 ] }
-        by { warn "tre=>" . shift; 33 }
-        by { warn "xtre=>" . shift; 55 };
-}
-
+    #warn 'cuatro=>' => 'hello' ~~
+    #    go { warn "uno=>" . $_[0]; 11 }
+    #    go { warn "due=>" . shift; [ 1..10 ] }
+    #    by { warn "tre=>" . shift; 33 }
+    #    by { warn "xtre=>" . shift; 55 };
+#}
 
 done_testing;

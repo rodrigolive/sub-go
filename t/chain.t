@@ -3,7 +3,6 @@ use warnings;
 
 use Test::More;
 use Sub::Go;
-use Method::Signatures;
 
 {
     my $cnt;
@@ -24,13 +23,13 @@ use Method::Signatures;
     [1..3] ~~
         go {
             ++$uno;
-            return get_out if $uno > 1;
+            return skip if $uno > 1;
         }
         go {
            $due++;
         };
-    is $uno, 2, 'get_out uno';
-    is $due, 1, 'get_out due';
+    is $uno, 2, 'skip uno';
+    is $due, 1, 'skip due';
 }
 
 {
@@ -39,13 +38,13 @@ use Method::Signatures;
     [1..3] ~~
         go {
             ++$uno;
-            return Sub::Go::get_out_all if $uno > 1;
+            return stop if $uno > 1;
         }
         go {
            $due++;
         };
-    is $uno, 2, 'get_out_all uno';
-    is $due, 0, 'get_out_all due';
+    is $uno, 2, 'stop uno';
+    is $due, 0, 'stop due';
 }
 
 done_testing
