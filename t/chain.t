@@ -47,4 +47,7 @@ use Sub::Go;
     is $due, 0, 'stop due';
 }
 
+#[1..10] ~~ go { warn "A=$_"; };
+#warn join ',' => bug { warn ">>>>$_" } [1..10];
+
 done_testing

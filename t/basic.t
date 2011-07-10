@@ -33,7 +33,7 @@ use Sub::Go;
 {
     my @ret;
     [ 1..10 ] ~~ go {
-        push @ret, shift;
+        push @ret, $_;
     };
     is( join('',@ret), '12345678910', 'arrayref' ); 
 }
@@ -57,6 +57,11 @@ use Sub::Go;
 {
     my $ret = '' ~~ go { 1 };
     is( $ret , 1, 'runs on empty' ); 
+}
+{
+    my @arr = (1..10);
+    @arr ~~ go { $_ * 2 } go { $_ * 3 };
+    die join',',@arr;
 }
 {
     my $ret = undef ~~ go { 1 };
@@ -91,17 +96,17 @@ use Sub::Go;
 }
 {
     # XXX broken functionality
-    my @ret =  [99..101] ~~ go { ($_[0]) };
+    my @ret =  [99..101] ~~ go { $_[0] };
     #is( join(',',@ret), '99,100,101', 'return array' );
-    is( @ret, 1, 'return array' );
-    is( $ret[0], 3, 'return array' );
+    is( @ret, 1, 'return array 1' );
+    is( $ret[0], undef, 'return array 2' );
 }
-{
-    'hello' ~~ go {
-        warn "uno=>" . shift;
-        yield 100;
-    } go { warn "due=>" . shift; }
-}
+#{
+#    'hello' ~~ go {
+#        warn "uno=>" . shift;
+#        yield 100;
+#    } go { warn "due=>" . shift; }
+#}
 #{
     #use signatures;
     #warn 'cuatro=>' => 'hello' ~~
