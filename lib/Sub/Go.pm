@@ -161,14 +161,14 @@ Sub::Go - DWIM sub blocks for smart matching
 
     use Sub::Go;
 
-    [ split /,/ => 'a,b,c' ] ~~ go {
-        print shift;  # prints a, then b, then c
-    };
+    [ 1, 2, 3 ] ~~ go { say $_  };
+    # 1
+    # 2
+    # 3
 
     # hashes with $a and $b
-    %h ~~ go {
-        say "key $a, value $a";
-    };
+
+    %h ~~ go { say "key $a, value $b" };
 
     undef ~~ go {
         # never gets called...
@@ -179,6 +179,7 @@ Sub::Go - DWIM sub blocks for smart matching
     };
 
     # in-place modify
+
     my @rs = ( { name=>'jack', age=>20 }, { name=>'joe', age=>45 } );
     @rs ~~ go { $_->{name} = 'sue' };
 
@@ -203,14 +204,13 @@ Sub::Go - DWIM sub blocks for smart matching
 
 =head1 DESCRIPTION
 
-In case you don't know, smart matching C<~~> against C<sub> blocks
+In case you don't know, smart matching (C<~~>) data against a code block
 will run the block once (for scalars) or, distributively, many times
 for arrays and hashes:
 
     [1..10] ~~ sub { say shift };
     @arr ~~ sub { say shift };
     %h ~~ sub { ... };
-    # ...
 
 The motivation behind this module is to improve
 the experience of using a code block with the smart match 
@@ -252,7 +252,8 @@ I'm tired of checking if stuff is defined in loops.
 
 =head3 chaining of sub blocks
 
-So you can bind several blocks one after the other. 
+So you can bind several blocks, one after the other, 
+in the opposite direction of C<map>, C<grep> and friends. 
 
     $arr ~~ go { } go { } go { };
 
@@ -265,7 +266,7 @@ or L<IO::All>. Perl should have better circunvention around this warning.
 
 A smart match (and most overloaded operators)
 can only return scalar values. So you can only expect
-to get a scalar from your block chaining.
+to get a scalar (value or arrayref) from your block chaining.
 
 =head1 FEATURES
 
