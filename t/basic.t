@@ -45,10 +45,8 @@ use Sub::Go;
     is( $ret, 'world', 'scalar return' ); 
 }
 {
-    my $ret = 'hello' ~~ go {
-        return (1..10); 
-    };
-    is( $ret , 10, 'return arr as scalar' ); 
+    my $ret = 'hello' ~~ go { return (100..109) };
+    is( @$ret , 10, 'return arr count ' ); 
 }
 {
     my $ret = 'hello' ~~ go { [1..10] };
@@ -61,7 +59,6 @@ use Sub::Go;
 {
     my @arr = (1..10);
     @arr ~~ go { $_ * 2 } go { $_ * 3 };
-    die join',',@arr;
 }
 {
     my $ret = undef ~~ go { 1 };
@@ -99,7 +96,7 @@ use Sub::Go;
     my @ret =  [99..101] ~~ go { $_[0] };
     #is( join(',',@ret), '99,100,101', 'return array' );
     is( @ret, 1, 'return array 1' );
-    is( $ret[0], undef, 'return array 2' );
+    is( ref($ret[0]), 'ARRAY', 'return array 2' );
 }
 #{
 #    'hello' ~~ go {

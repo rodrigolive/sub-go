@@ -3,6 +3,7 @@ use strict;
 use v5.10;
 use Exporter::Tidy default => [ qw/go yield skip stop/ ];
 use Carp;
+use Scalar::Util qw/blessed/;
 
 # get rid of this annoying message
 my $old_warn_handler = $SIG{ __WARN__ };
@@ -14,7 +15,7 @@ $SIG{ __WARN__ } = sub {
 };
 
 use overload '~~' => \&over_go;
-use overload '>>' => \&over_go_assign;
+#use overload '>>' => \&over_go_assign;
 
 sub over_go_assign {
     $_[0]->{assign};
@@ -29,7 +30,9 @@ sub over_go {
     return unless defined $arg;
     my $code = $_go_self->{ code };
     my $ret  = [];
-    #$_go_self->{ret} = $ret;
+    $_go_self->{arg} = $arg;
+
+    # input value processing
     if ( ref $arg eq 'ARRAY' ) {
         for ( @$arg ) {
             my $r = $code->($_);
@@ -38,7 +41,17 @@ sub over_go {
         }
     }
     elsif ( ref $arg eq 'HASH' ) {
+        # get the caller's $k and $v
+        my ( $caller_a, $caller_b ) = do {
+            my $pkg = caller();
+            no strict 'refs';
+            \*{$pkg.'::a'}, \*{$pkg.'::b'};
+        };
+    
+        # iterate the hash
         while ( my ( $k, $v ) = each %$arg ) {
+            local $_ = [$k,$v];
+            ( *$caller_a, *$caller_b ) = \( $k, $v );
             push @$ret, $code->( $k, $v );
         }
     }
@@ -56,10 +69,15 @@ sub over_go {
             push @$ret, $r;
         }
     }
-    else {
+    elsif ( blessed $arg && $arg->can('next') ) {
+        while( local $_ = $arg->next ) {
+            push @$ret, $code->( $_ );
+        }
+    } else {
         push @$ret, $code->( $arg ) for $arg;
     }
 
+    # chaining return value processing
     if (   ref $_go_self->{rest} eq __PACKAGE__
         && !$_go_self->{yielded}
         && !$_go_self->{stop} )
@@ -67,16 +85,25 @@ sub over_go {
         if ( @$ret > 1 ) {
             $_go_self->{by}
                 ? $_go_self->{rest}->{code}->( @$ret )
-                : $arg ~~ $_go_self->{rest};
+                : $ret ~~ $_go_self->{rest};
         }
         else {
-            $_go_self->{ by }
+            return $_go_self->{ by }
                 ? $_go_self->{rest}->{code}->( @$ret )
-                : $arg ~~ $_go_self->{rest};
+                : $ret ~~ $_go_self->{rest};
         }
     }
+    elsif ( ref $_go_self->{rest} eq 'SCALAR' ) {
+       ${ $_go_self->{rest} } = $ret->[0];
+    }
+    elsif ( ref $_go_self->{rest} eq 'ARRAY' ) {
+       @{ $_go_self->{rest} } = @$ret;
+    }
+    elsif ( ref $_go_self->{rest} eq 'HASH' ) {
+       %{ $_go_self->{rest} } = @$ret;
+    }
     else {
-        return @$ret > 1 ? @$ret : $ret->[ 0 ];
+        return @$ret > 1 ? $ret : $ret->[0];
     }
 }
 
@@ -111,7 +138,9 @@ sub yield {
 }
 
 sub go(&;@) {
-    my ( $code, $rest ) = @_;
+    my $code = shift;
+    my $rest = shift;
+    
     return bless { code => $code, rest => $rest }, __PACKAGE__;
 }
 
@@ -136,6 +165,11 @@ Sub::Go - DWIM sub blocks for smart matching
         print shift;  # prints a, then b, then c
     };
 
+    # hashes with $a and $b
+    %h ~~ go {
+        say "key $a, value $a";
+    };
+
     undef ~~ go {
         # never gets called...
     };
@@ -144,15 +178,7 @@ Sub::Go - DWIM sub blocks for smart matching
         # ...but this does
     };
 
-    # hashes
-
-    %h ~~ go {
-        my ($k,$v) = @_;
-        say "key $k, value $v";
-    };
-
     # in-place modify
-
     my @rs = ( { name=>'jack', age=>20 }, { name=>'joe', age=>45 } );
     @rs ~~ go { $_->{name} = 'sue' };
 
@@ -165,12 +191,10 @@ Sub::Go - DWIM sub blocks for smart matching
     };
 
     # chaining
-    
     @arr ~~ go { s/$/one/ } go { s/$/two/ };
 
     # combine with signatures, or Method::Signatures
-    #   for improved horsepower
-
+    #   for improved sweetness
     use Method::Signatures;
 
     %h ~~ go func($x,$y) {
@@ -197,16 +221,18 @@ This sub returns an object that overloads the smart match operator.
 
 =head2 Benefits
 
-=head3 proper handling of hashes, with keys and values
+=head3 proper handling of hashes, with $a and $b for keys and values
 
 Smart matching sends only the keys, which may be useless
 if your hash is anonymous.
 
-   %h ~~ go { my ($k,$v) = @_;
-        say "key=$k, value=$v";
+   { foo=>1, bar=>2 } ~~ go { 
+        say "key=$a, value=$b";
    };
 
-=head3 in-place modification of the matched array
+=head3 in-place modification of values
+
+Since you can't return anything properly.
 
     my @arr = qw/a b c/;
     @arr ~~ go { s{$}{x} };
@@ -214,20 +240,26 @@ if your hash is anonymous.
 
 =head3 context variables
 
-Loading of both C<$_> and C<@_> variables with the current value
-
-Smart matching only uses C<@_>.
+Load C<$_> with the current value for arrays and scalars.
+Look for C<$a> and C<$b> for hash values. 
 
 =head3 prevent the block from running on undef values
+
+I'm tired of checking if stuff is defined in loops.
 
     undef ~~ go { say "never runs" };
     undef ~~ sub { say "but we do" };
 
 =head3 chaining of sub blocks
 
-So you can bind several blocks. 
+So you can bind several blocks one after the other. 
+
+    $arr ~~ go { } go { } go { };
 
 =head3 no warnings on the useless use of smart match operator in void context
+
+Annoying warning for funky syntax overloading modules like this one
+or L<IO::All>. Perl should have better circunvention around this warning.
 
 =head2 Pitfalls
 
@@ -294,29 +326,58 @@ Or break the whole chain at a given point:
 
 Scalar is the only return value from a smart match expression,
 and the same applies to C<go>. You can only return scalars, 
-no arrays. 
+no arrays and hashes. So we return an arrayref if your go chain
+returns more than one value.
 
-    # good
+    # scalar
     my $value = 'hello' ~~ go { "$_[0] world" } # hello world
     
-    # broken:
-    my @arr = [10..19] go { shift }; # @arr == 1, $arr[0] == 10
+    # arrayref 
+    my $arr = [10..19] go { shift }; # @arr == 1, $arr[0] == 10
 
 Just use C<map> in this case, which is syntactically more sound anyway.
+
+So, there's an alternative implementation for returning values, by 
+chaining a reference to a variable, as such:
+
+    my @squares;
+    @input ~~ go { $_ ** 2 } \@squares;
+    
+    my %hash = ( uno=>11, due=>22 );
+    my %out;
+    %hash ~~ go { "xxx$_[0]" => $_[1] } \%out;
+    # %out = ( xxxuno => 11, xxxdue => 22 )
+
+Now you have a C<map> like interface the other way around.
+
+=head2 next iterators 
+
+If you send the block an object which implements 
+a method called C<next>, the method will be automatically called
+and the return value fed to the block.
+
+    # DBIx::Class resultset
+    
+    $resultset->search({ age=>100 }) ~~ go {
+        $_->name . " is centenary!";
+    };
 
 =head1 IMPORTS
 
 =head3 go CODE
 
-The main function here. Don't forget the semicolon at the end.
+The main function here. Don't forget the semicolon at the end of the block.
 
-=head3 yield
+=head3 yield VALUE
 
-Iterate once over the next block in the chain.
+Iterate over into the next block in the chain.
+    
+    [qw/sue mike/] ~~ go { yield "world, $_" } go { say "hello " . shift };
 
 =head3 skip 
 
-Tell the iterator to stop executing the block.
+Tell the iterator to stop executing the current block and go
+to the next, if any.
     
     return skip;
 
@@ -328,14 +389,19 @@ Tell the iterator to stop executing all blocks.
 
 =head1 BUGS
 
-This is pre-alfa on a test-drive. Everything you ever knew 
-could change tomorrow.
+This is pre-alfa, out in the CPAN for a test-drive. There 
+are still inconsistencies in the syntax that need some 
+more thought, so expect things to change badly. 
 
 L<PadWalker>, a dependency, may segfault in perl 5.14.1.
 
 =head1 SEE ALSO
 
 L<autobox::Core> - has an C<each> method that can be chained together
+
+L<List::Gen>
+
+L<Sub::Chain>
 
 =cut
 
