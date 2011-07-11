@@ -35,9 +35,9 @@ sub over_go {
     # input value processing
     if ( ref $arg eq 'ARRAY' ) {
         for ( @$arg ) {
-            my $r = $code->($_);
-            last if ref $r eq 'Sub::Go::Break';
-            push @$ret, $r;
+            my @r = $code->($_);
+            last if ref $r[0] eq 'Sub::Go::Break';
+            push @$ret, @r;
         }
     }
     elsif ( ref $arg eq 'HASH' ) {
@@ -103,7 +103,8 @@ sub over_go {
        %{ $_go_self->{rest} } = @$ret;
     }
     else {
-        return @$ret > 1 ? $ret : $ret->[0];
+        return @$ret > 1 ? $ret
+            : $ret->[0] // $ret;
     }
 }
 
@@ -230,22 +231,23 @@ if your hash is anonymous.
         say "key=$a, value=$b";
    };
 
-=head3 in-place modification of values
-
-Since you can't return anything properly.
-
-    my @arr = qw/a b c/;
-    @arr ~~ go { s{$}{x} };
-    # now @arr is qw/ax bx cx/
-
 =head3 context variables
 
 Load C<$_> with the current value for arrays and scalars.
 Look for C<$a> and C<$b> for hash values. 
 
+=head3 in-place modification of original values
+
+But only in the first C<go> block of a chain (although this
+may change soon).
+
+    my @arr = qw/a b c/;
+    @arr ~~ go { s{$}{x} };
+    # now @arr is qw/ax bx cx/
+
 =head3 prevent the block from running on undef values
 
-I'm tired of checking if stuff is defined in loops.
+We're tired of checking if defined is defined in loops.
 
     undef ~~ go { say "never runs" };
     undef ~~ sub { say "but we do" };
@@ -260,7 +262,7 @@ in the opposite direction of C<map>, C<grep> and friends.
 =head3 no warnings on the useless use of smart match operator in void context
 
 Annoying warning for funky syntax overloading modules like this one
-or L<IO::All>. Perl should have better circunvention around this warning.
+or L<IO::All>. Perl should have better way around this warning.
 
 =head2 Pitfalls
 

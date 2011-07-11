@@ -55,10 +55,24 @@ use Sub::Go;
 {
     my @arr = (1..3);
     my @out;
-    @arr ~~ go { 2 * $_ }
-        go { $_ += 100; qw/a b c/ }
-        go { shift() . 'x' } \@out;  
-    warn @out;
+    @arr ~~ go { 2 * $_, 9 }  # 6 out
+        go { $_ += 100; qw/a b c/ } # 6 x 3 out = 18
+        go { return if /a|b/; $_ . 'x' } \@out;  # reduce to 6
+    is "@out", 'cx cx cx cx cx cx' , 'multi arrays';
+}
+{
+    # this could change
+    my @arr = (1..3);
+    @arr ~~ go { s/$/x/ } go { s/$/a/ };
+    is "@arr", '1x 2x 3x', 'substitution only on first';
+}
+{
+   [10..12] ~~ go {
+        return skip if $_ > 10;
+        $_
+   } go {
+        is $_ => 10, 'skip once';
+   };
 }
 
 #[1..10] ~~ go { warn "A=$_"; };

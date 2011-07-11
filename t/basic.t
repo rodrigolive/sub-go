@@ -66,8 +66,18 @@ use Sub::Go;
 }
 {
     my @a;
-    my $ret = @a ~~ go { 1 };
-    is( $ret , undef, 'no run on empty array' ); 
+    my $ret = @a ~~ go { is 1,0,'should never run this'; 1 };
+    is( @$ret , 0, 'no run on empty array' ); 
+}
+{
+    my @arr = (1,2,undef);
+    my $out = @arr ~~ go { $_ };
+    ok @$out == 3, 'undef in arrary counts'; 
+}
+{
+    my @arr = (1,2,undef);
+    my $out = @arr ~~ go { return stop };
+    ok @$out == 0, 'empty arrayref is 0 size'; 
 }
 {
     my @ret;
